@@ -3,4 +3,4 @@
 - Second Camera: See the relative position after the product is on the blister to check if the product is placed in the correct position with OBB
 - Third Camera: Determine the orientation of the blister to instruct the arm of Robot to interact properly for programming purposes
 ` P/s : The program does not have an image listing the privacy policies of the products the project directly uses. `
-#### **Sumarize: Approach the product with inclined surface and give small position error to interact with robot, and run three basler cameras independently **
+#### Sumarize: Approach the product with inclined surface and give small position error to interact with robot, and run three basler cameras independently 
