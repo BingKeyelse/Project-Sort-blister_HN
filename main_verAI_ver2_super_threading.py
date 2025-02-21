@@ -121,7 +121,6 @@ class MainWindow(QMainWindow):
         ###### Phần cam1 thực thi luôn ở phần Display timer
 
         ###### phần cam2
-        self.count_cc=2
         self.ui.but_thread_process_cam2.hide()
         self.ui.but_cut_cam2.hide()
         self.ui.but_poly1_cam2.hide()
@@ -981,15 +980,11 @@ class MainWindow(QMainWindow):
                                 self.send_data(460,data_cam2_send)
                                 self.send_data(478,1)
                                 self.old_value_cam2=data_cam2_send
-                    
                     # self.send_data(460,self.count_cc)
                     # self.send_data(478,1)
                     # self.count_cc=self.count_cc+1
                     # if self.count_cc>8:
                     #     self.count_cc=2
-                    
-                    
-
                     # self.send_data(478,1)
                             
                     self.ui.space_screen_cam2_1.setPixmap(QtGui.QPixmap(r"C:\Users\pronics\Desktop\sort_blister_hn_ver2\program\cam2\iamge_handled_AI.png"))
@@ -1093,6 +1088,26 @@ class MainWindow(QMainWindow):
                 log_file.write("\n")
             # print("Đã ghi lỗi vào file error_log.txt")
 
+def capture_camera(camera, img_queue, resize=None, stop_event= None, mode_save=False):
+    converter = pylon.ImageFormatConverter()
+    converter.OutputPixelFormat = pylon.PixelType_BGR8packed
+    converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+    
+    while not stop_event.is_set():
+        grabResult = camera.RetrieveResult(0, pylon.TimeoutHandling_Return)
+        try:
+            if grabResult.GrabSucceeded():
+                image = converter.Convert(grabResult)
+                img = image.GetArray()
+                if resize:
+                    img = cv2.resize(img, resize, interpolation=cv2.INTER_CUBIC)
+                if mode_save:
+                    cv2.imwrite(r'C:\Users\pronics\Desktop\sort_blister_hn_ver2\program\cam3\image.png',img)
+                img_queue.put(img)
+            grabResult.Release()
+        except Exception as e:
+            ERORRRRRRRR = "LOL"
+
 # def camera_Basler_multi(stage,trigger_cam1,trigger_cam2,trigger_cam3):
 def camera_Basler_multi(pic_cam1, pic_cam2, pic_cam3, mode_re):
     id_cam1=0
@@ -1105,15 +1120,13 @@ def camera_Basler_multi(pic_cam1, pic_cam2, pic_cam3, mode_re):
     maxCamerasToUse = 10
     tlFactory = pylon.TlFactory.GetInstance()
     devices = tlFactory.EnumerateDevices()
-    delay_time = 0
+
     if len(devices) == 0:
         raise pylon.RuntimeException("No camera present.")
     cameras = pylon.InstantCameraArray(min(len(devices), maxCamerasToUse))
-    l = cameras.GetSize()
-    count=0
-    
+
     for i, camera in enumerate(cameras):
-        count=count+1
+        # count=count+1
         
         if i ==0: 
             id_cam2=0
@@ -1140,107 +1153,50 @@ def camera_Basler_multi(pic_cam1, pic_cam2, pic_cam3, mode_re):
         print("DeviceFactory: ", camera.GetDeviceInfo().GetDeviceFactory())
         print("ModelName: ", camera.GetDeviceInfo().GetModelName())
         camera.MaxNumBuffer = 100
-        # Select the Frame Start trigger 
         camera.TriggerSelector.SetValue('FrameStart') #  Continuous
-        # camera.TriggerSelector.SetValue(TriggerSelector_FrameStart);
-        # camera.TriggerDelayAbs.SetValue(1);     
-        # Acquisition mode
-        # camera.AcquisitionMode.SetValue('Continuous')
-        # camera.AcquisitionMode.SetValue('SingleFrame')
-        # Enable triggered image acquisition for the Frame Start trigger 
-        # camera.TriggerMode.SetValue('On') 
-        # Set the trigger source to Line 1 
         camera.TriggerSource.SetValue('Line1')
-        # Set the trigger activation mode to rising edge 
         camera.TriggerActivation.SetValue('RisingEdge')  #Falling Edge   RisingEdge  99995  309540
-        # camera.UserOutputSelector.SetValue('UserOutput1')
-        # camera.UserOutputValueAll.SetValue(False)
-    ######### Setup each parameter camera 
+
     cam1.TriggerMode.SetValue('On')
     cam2.TriggerMode.SetValue('On')
     cam3.TriggerMode.SetValue('On')
     cam3.ExposureTimeAbs.SetValue(5005)
 
-    print(count)
-    # cameras.StartGrabbing((pylon.GrabStrategy_OneByOne))
-    cameras.StartGrabbing((pylon.GrabStrategy_LatestImageOnly))
-    # cameras.StartGrabbing((pylon.GrabStrategy_UpcomingImage))
-    converter = pylon.ImageFormatConverter()
-    # convertion openCV BGR format 
-    converter.OutputPixelFormat = pylon.PixelType_BGR8packed 
-    converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
-    path_file=r'C:\Users\pronics\Desktop\sort_blister_hn_ver2\program\data_AI\cam2_real'
-    time_start=time.time()
+    cam_mapping = {2: cam1, 0: cam2, 1: cam3}
+    cameras.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+    stop_event = threading.Event()
 
-    while True: 
-        if count ==3:
-            # if stage.value ==0:
-            grabResult =  cameras.RetrieveResult(0, pylon.TimeoutHandling_Return) 
-            
-            try:
-                # grabResult =  cameras.RetrieveResult(0, pylon.TimeoutHandling_Return) 
-                # grabResult =  cameras.RetrieveResult(0, pylon.TimeoutHandling_ThrowException) 
-                
-                if grabResult.GrabSucceeded():
-                    if mode_re.value==0:
-                        mode_re.value = 1
-                    
-                    cameraContextValue = grabResult.GetCameraContext()
-                    image = converter.Convert(grabResult)
-                    img = image.GetArray()
-                    # img = cv2.resize(img, (518, 388),interpolation = cv2.INTER_LINEAR)
-                    # print(cameraContextValue)
-                    # print(id_cam1)
-                    if cameraContextValue == id_cam1:
-                        # trigger_cam1.value=1
-                        print("Image grabbed from camera 1")
-                        # cv2.imwrite(r'C:\Users\pronics\Desktop\sort_blister_hn_ver2\program\cam1\image.png',img)
-                        pic_cam1.put(img)
+    if mode_re.value==0:
+        mode_re.value = 1
 
-                    elif cameraContextValue == id_cam2:
-                        # trigger_cam2.value=1
-                        print("Image grabbed from camera 2")
-                        # print(trigger_cam2.value)
-                        img2= cv2.resize(img,(576,432),interpolation = cv2.INTER_CUBIC) 
-                        # cv2.imwrite(r'C:\Users\pronics\Desktop\sort_blister_hn_ver2\program\cam2\image.png',img2)
-                        # file_name=datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f") +'.png'
-                        # link=os.path.join(path_file,file_name)
-                        # cv2.imwrite(link,img2)
 
-                        # img2_xxx=cv2.resize()
-                        pic_cam2.put(img2)
+    t1 = threading.Thread(target=capture_camera, args=(cam_mapping[2], pic_cam1, None, stop_event, False), daemon=True)
+    t2 = threading.Thread(target=capture_camera, args=(cam_mapping[0], pic_cam2, (576, 432), stop_event, False), daemon=True)
+    t3 = threading.Thread(target=capture_camera, args=(cam_mapping[1], pic_cam3, (576, 432), stop_event, True), daemon=True)
+    
+    t1.start()
+    t2.start()
+    t3.start()
 
-                        
-                    elif cameraContextValue == id_cam3:
-                        # trigger_cam3.value=1
-                        img= cv2.resize(img,(576,432),interpolation = cv2.INTER_CUBIC) 
-                        print("Image grabbed from camera 3")
-                        cv2.imwrite(r'C:\Users\pronics\Desktop\sort_blister_hn_ver2\program\cam3\image.png',img)
-                        pic_cam3.put(img)
-                        
-                grabResult.Release()
-                  
-            except Exception as e:
-                ERORRRRRRRR = "LOL"
-            
-            # if (time.time()-time_start>2.5):
-            #     time_start=time.time()
-            #     gc.collect()
-                # with open(r"C:\Users\pronics\Desktop\sort_blister_hn_ver2\program\error_log\error_log_takeup_picture_from_each_camera.txt", "a") as log_file:
-                #     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                #     log_file.write(f"[{current_time}] Error: {str(e)}\n")
-                #     log_file.write(traceback.format_exc())  # Ghi chi tiết lỗi
-                #     log_file.write("\n")
-            grabResult.Release()
-            # stage.value=1
-        
-
-        else:
-            print('Not enough camera' )
-        
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Stopping all threads...")
+        stop_event.set()
+    
+    t1.join()
+    t2.join()
+    t3.join()
+    
+   
     cameras.StopGrabbing()
     cameras.Close()
     print('Ket thuc chuong trinh')
+
+# Khi muốn dừng camera
+def stop_cameras(stop_event):
+    stop_event.set()
 
 def main_program(pic_cam1, pic_cam2, pic_cam3, stage_cam1, stage_cam2, stage_cam3,mode_re):
     app = QApplication(sys.argv)
